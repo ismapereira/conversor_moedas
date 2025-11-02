@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import '../services/api_service.dart'; // Importamos nosso serviço de API
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({Key? key}) : super(key: key);
+  const HomeScreen({super.key});
 
   @override
-  _HomeScreenState createState() => _HomeScreenState();
+  State<HomeScreen> createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> {
@@ -17,73 +17,81 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // Variáveis de estado
   Future<Map<String, String>>? _currenciesFuture;
-  String _fromCurrency = 'USD'; // Moeda padrão "De"
-  String _toCurrency = 'BRL'; // Moeda padrão "Para"
-  String _resultMessage = ''; // Mensagem com o resultado
-  bool _isConverting = false; // Feedback de carregamento no botão
+  String _fromCurrency = 'USD';
+  String _toCurrency = 'BRL';
+  bool _isConverting = false;
+
+  // NOVAS VARIÁVEIS DE ESTADO PARA O DESIGN DO RESULTADO
+  String _errorMessage = ''; // Apenas para erros
+  String _fromAmountStr = ''; // "100.00 USD"
+  String _toAmountStr = ''; // "512.34 BRL"
+  bool _showResultCard = false; // Controla a animação
 
   @override
   void initState() {
     super.initState();
-    // Ao iniciar a tela, carregamos a lista de moedas
     _loadCurrencies();
   }
 
-  // Método para carregar as moedas da API
   void _loadCurrencies() {
     _currenciesFuture = _apiService.getCurrencies();
-    setState(() {}); // Atualiza a tela para o FutureBuilder
+    setState(() {});
   }
 
-  // Método para realizar a conversão
+  // MÉTODO _convert ATUALIZADO
   Future<void> _convert() async {
-    if (_amountController.text.isEmpty) return;
+    if (_amountController.text.isEmpty) {
+      setState(() {
+        _errorMessage = 'Por favor, insira um valor';
+        _showResultCard = false;
+      });
+      return;
+    }
 
     setState(() {
       _isConverting = true;
-      _resultMessage = '';
+      _errorMessage = '';
+      _showResultCard = false; // Esconde o card antigo antes de converter
     });
 
     try {
-      // Pegamos o valor, garantindo que o formato decimal seja com '.'
       double amount = double.parse(_amountController.text.replaceAll(',', '.'));
 
-      // Chamamos a API
       double convertedAmount = await _apiService.convert(
         _fromCurrency,
         _toCurrency,
         amount,
       );
 
-      // Formatamos a saída para 2 casas decimais
-      String fromAmountFormatted = amount.toStringAsFixed(2);
-      String toAmountFormatted = convertedAmount.toStringAsFixed(2);
-
-      // Atualizamos a mensagem de resultado
+      // Atualiza as novas variáveis de estado
       setState(() {
-        _resultMessage =
-            '$fromAmountFormatted $_fromCurrency = $toAmountFormatted $_toCurrency';
+        _fromAmountStr = '${amount.toStringAsFixed(2)} $_fromCurrency';
+        _toAmountStr = '${convertedAmount.toStringAsFixed(2)} $_toCurrency';
+        _showResultCard = true; // Mostra o card com animação
       });
     } catch (e) {
-      // Em caso de erro
       setState(() {
-        _resultMessage = 'Erro: ${e.toString()}';
+        _errorMessage = 'Erro: Verifique sua conexão.';
+        _showResultCard = false;
       });
     } finally {
-      // Independente de sucesso ou falha, paramos o loading
       setState(() {
         _isConverting = false;
       });
     }
   }
 
-  // Método para inverter as moedas selecionadas
+  // MÉTODO _swapCurrencies ATUALIZADO
   void _swapCurrencies() {
     setState(() {
       final temp = _fromCurrency;
       _fromCurrency = _toCurrency;
       _toCurrency = temp;
-      // Após inverter, realizamos a conversão automaticamente
+
+      // Limpa o resultado anterior ao inverter
+      _showResultCard = false;
+      _errorMessage = '';
+
       if (_amountController.text.isNotEmpty) {
         _convert();
       }
@@ -93,45 +101,29 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text('Conversor Minimalista'),
-        backgroundColor: Colors.white, // Fundo branco
-        elevation: 0, // Sem sombra, para um look "flat"
-        centerTitle: true,
-        titleTextStyle: TextStyle(
-          color: Colors.black87, // Título em cor escura
-          fontSize: 20,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
+      appBar: AppBar(title: const Text('Conversor de Moedas')),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
-        // O FutureBuilder "constrói" a tela baseado no estado da nossa API
         child: FutureBuilder<Map<String, String>>(
           future: _currenciesFuture,
           builder: (context, snapshot) {
-            // 1. Estado de Carregamento
             if (snapshot.connectionState == ConnectionState.waiting) {
-              return Center(child: CircularProgressIndicator());
+              return const Center(child: CircularProgressIndicator());
             }
 
-            // 2. Estado de Erro
             if (snapshot.hasError) {
-              return Center(
+              return const Center(
                 child: Text('Erro ao carregar moedas. Tente novamente.'),
               );
             }
 
-            // 3. Estado de Sucesso (Dados Prontos)
             if (!snapshot.hasData || snapshot.data!.isEmpty) {
-              return Center(child: Text('Nenhuma moeda encontrada.'));
+              return const Center(child: Text('Nenhuma moeda encontrada.'));
             }
 
-            // Se chegamos aqui, os dados (moedas) estão prontos
             final currencies = snapshot.data!;
             List<String> currencyKeys = currencies.keys.toList()..sort();
 
-            // Garantir que os valores padrão estejam na lista
             if (!currencyKeys.contains(_fromCurrency)) {
               _fromCurrency = currencyKeys.first;
             }
@@ -144,33 +136,32 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  SizedBox(height: 20),
+                  const SizedBox(height: 20),
 
                   // 1. Campo de Valor
                   TextField(
                     controller: _amountController,
-                    keyboardType: TextInputType.numberWithOptions(
+                    keyboardType: const TextInputType.numberWithOptions(
                       decimal: true,
                     ),
                     decoration: InputDecoration(
-                      labelText: 'Valor a converter',
-                      prefixIcon: Icon(Icons.attach_money_outlined),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12.0),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12.0),
-                        borderSide: BorderSide(
-                          color: Theme.of(context).primaryColor,
-                          width: 2.0,
-                        ),
+                      // Usar hintText é mais minimalista que labelText
+                      hintText: 'Digite o valor',
+                      prefixIcon: Icon(
+                        Icons.monetization_on_outlined,
+                        color: Colors.teal.shade700,
                       ),
                     ),
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
-                  SizedBox(height: 24),
+                  const SizedBox(height: 24),
 
                   // 2. Dropdowns de Seleção
                   Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       // "De"
                       Expanded(
@@ -187,16 +178,25 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                       ),
 
-                      // Botão de Inverter
+                      // Botão de Inverter ATUALIZADO
                       Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                        child: IconButton(
-                          icon: Icon(
-                            Icons.swap_horiz,
-                            color: Theme.of(context).primaryColor,
-                            size: 30,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8.0,
+                          vertical: 8.0,
+                        ),
+                        // Damos um fundo circular ao botão
+                        child: Material(
+                          color: Colors.grey.shade200,
+                          shape: const CircleBorder(),
+                          clipBehavior: Clip.antiAlias,
+                          child: IconButton(
+                            icon: Icon(
+                              Icons.swap_horiz,
+                              color: Theme.of(context).primaryColor,
+                              size: 28,
+                            ),
+                            onPressed: _swapCurrencies,
                           ),
-                          onPressed: _swapCurrencies,
                         ),
                       ),
 
@@ -216,42 +216,43 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ],
                   ),
-                  SizedBox(height: 32),
+                  const SizedBox(height: 32),
 
                   // 3. Botão de Converter
                   ElevatedButton(
                     onPressed: _isConverting ? null : _convert,
                     child: _isConverting
-                        ? CircularProgressIndicator(
+                        ? const CircularProgressIndicator(
                             valueColor: AlwaysStoppedAnimation<Color>(
                               Colors.white,
                             ),
                           )
-                        : Text('Converter'),
-                    style: ElevatedButton.styleFrom(
-                      padding: EdgeInsets.symmetric(vertical: 16),
-                      textStyle: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12.0),
-                      ),
-                    ),
+                        : const Text('Converter'),
                   ),
-                  SizedBox(height: 32),
+                  const SizedBox(height: 32),
 
-                  // 4. Área de Resultado
-                  if (_resultMessage.isNotEmpty)
+                  // 4. NOVA ÁREA DE RESULTADO
+                  // Animação de Fade-in
+                  AnimatedOpacity(
+                    opacity: _showResultCard ? 1.0 : 0.0,
+                    duration: const Duration(milliseconds: 500),
+                    child: _buildResultCard(),
+                  ),
+
+                  // Exibição de Erro
+                  if (_errorMessage.isNotEmpty)
                     Center(
-                      child: Text(
-                        _resultMessage,
-                        style: TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                          color: Theme.of(context).primaryColor,
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: 16.0),
+                        child: Text(
+                          _errorMessage,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            color: Colors.redAccent,
+                            fontWeight: FontWeight.w500,
+                          ),
+                          textAlign: TextAlign.center,
                         ),
-                        textAlign: TextAlign.center,
                       ),
                     ),
                 ],
@@ -263,7 +264,52 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // Widget auxiliar para criar os Dropdowns
+  // NOVO WIDGET: Card de Resultado
+  Widget _buildResultCard() {
+    return Container(
+      padding: const EdgeInsets.all(20.0),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(12.0),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // "De" (Valor original)
+          Text(
+            _fromAmountStr,
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w500,
+              color: Colors.grey.shade700,
+            ),
+          ),
+
+          // Ícone de igualdade
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 8.0),
+            child: Icon(
+              Icons.arrow_downward_rounded,
+              color: Colors.black54,
+              size: 20,
+            ),
+          ),
+
+          // "Para" (Valor convertido) - O HERÓI
+          Text(
+            _toAmountStr,
+            style: TextStyle(
+              fontSize: 32,
+              fontWeight: FontWeight.bold,
+              color: Theme.of(context).primaryColor,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Widget auxiliar dos Dropdowns (O MESMO DE ANTES)
   Widget _buildCurrencyDropdown(
     String label,
     String selectedValue,
@@ -271,24 +317,31 @@ class _HomeScreenState extends State<HomeScreen> {
     List<String> keys,
     Map<String, String> nameMap,
   ) {
-    return DropdownButtonFormField<String>(
+    return InputDecorator(
       decoration: InputDecoration(
         labelText: label,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12.0)),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 12.0,
+          vertical: 8.0,
+        ),
       ),
-      value: selectedValue,
-      isExpanded: true,
-      items: keys.map((String key) {
-        return DropdownMenuItem<String>(
-          value: key,
-          // Mostra a sigla e o nome da moeda (ex: BRL - Brazilian Real)
-          child: Text(
-            '$key - ${nameMap[key]}',
-            overflow: TextOverflow.ellipsis,
-          ),
-        );
-      }).toList(),
-      onChanged: onChanged,
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: selectedValue,
+          isExpanded: true,
+          isDense: true,
+          items: keys.map((String key) {
+            return DropdownMenuItem<String>(
+              value: key,
+              child: Text(
+                '$key - ${nameMap[key]}',
+                overflow: TextOverflow.ellipsis,
+              ),
+            );
+          }).toList(),
+          onChanged: onChanged,
+        ),
+      ),
     );
   }
 }
