@@ -21,16 +21,21 @@ class _HomeScreenState extends State<HomeScreen> {
   String _toCurrency = 'BRL';
   bool _isConverting = false;
 
-  // NOVAS VARIÁVEIS DE ESTADO PARA O DESIGN DO RESULTADO
+  // Variáveis de estado para o design do resultado
   String _errorMessage = ''; // Apenas para erros
   String _fromAmountStr = ''; // "100.00 USD"
   String _toAmountStr = ''; // "512.34 BRL"
   bool _showResultCard = false; // Controla a animação
 
+  // Variáveis para o Slider de Cotações
+  Future<Map<String, double>>? _dailyRatesFuture;
+  final List<String> _popularCurrencies = ['USD', 'EUR', 'GBP', 'JPY', 'ARS'];
+
   @override
   void initState() {
     super.initState();
     _loadCurrencies();
+    _loadDailyRates(); // Carrega as cotações do dia
   }
 
   void _loadCurrencies() {
@@ -38,7 +43,12 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() {});
   }
 
-  // MÉTODO _convert ATUALIZADO
+  // Método para carregar as cotações do dia
+  void _loadDailyRates() {
+    _dailyRatesFuture = _apiService.getDailyRates(_popularCurrencies);
+    setState(() {});
+  }
+
   Future<void> _convert() async {
     if (_amountController.text.isEmpty) {
       setState(() {
@@ -81,7 +91,6 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  // MÉTODO _swapCurrencies ATUALIZADO
   void _swapCurrencies() {
     setState(() {
       final temp = _fromCurrency;
@@ -145,7 +154,6 @@ class _HomeScreenState extends State<HomeScreen> {
                       decimal: true,
                     ),
                     decoration: InputDecoration(
-                      // Usar hintText é mais minimalista que labelText
                       hintText: 'Digite o valor',
                       prefixIcon: Icon(
                         Icons.monetization_on_outlined,
@@ -178,13 +186,12 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                       ),
 
-                      // Botão de Inverter ATUALIZADO
+                      // Botão de Inverter
                       Padding(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 8.0,
                           vertical: 8.0,
                         ),
-                        // Damos um fundo circular ao botão
                         child: Material(
                           color: Colors.grey.shade200,
                           shape: const CircleBorder(),
@@ -229,10 +236,13 @@ class _HomeScreenState extends State<HomeScreen> {
                           )
                         : const Text('Converter'),
                   ),
+
+                  // SLIDER DE COTAÇÕES
+                  const SizedBox(height: 32),
+                  _buildDailyRatesSlider(),
                   const SizedBox(height: 32),
 
-                  // 4. NOVA ÁREA DE RESULTADO
-                  // Animação de Fade-in
+                  // 4. ÁREA DE RESULTADO
                   AnimatedOpacity(
                     opacity: _showResultCard ? 1.0 : 0.0,
                     duration: const Duration(milliseconds: 500),
@@ -264,7 +274,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // NOVO WIDGET: Card de Resultado
+  // WIDGET: Card de Resultado
   Widget _buildResultCard() {
     return Container(
       padding: const EdgeInsets.all(20.0),
@@ -309,7 +319,103 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // Widget auxiliar dos Dropdowns (O MESMO DE ANTES)
+  // WIDGET: Constrói o Slider de Cotações
+  Widget _buildDailyRatesSlider() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Título da seção
+        Text(
+          'Cotações do dia (Base: BRL)',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: Colors.black87,
+          ),
+        ),
+        SizedBox(height: 12),
+
+        // Container para o slider horizontal
+        Container(
+          height: 80, // Altura fixa para os cards
+          child: FutureBuilder<Map<String, double>>(
+            future: _dailyRatesFuture,
+            builder: (context, snapshot) {
+              // 1. Estado de Carregamento
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return Center(child: CircularProgressIndicator());
+              }
+
+              // 2. Estado de Erro
+              if (snapshot.hasError) {
+                return Center(
+                  child: Text(
+                    'Erro ao carregar cotações.',
+                    style: TextStyle(color: Colors.redAccent),
+                  ),
+                );
+              }
+
+              // 3. Estado de Sucesso
+              if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                return Center(child: Text('Sem dados.'));
+              }
+
+              final rates = snapshot.data!;
+
+              // Constrói a lista horizontal
+              return ListView.builder(
+                scrollDirection: Axis.horizontal, // Define a direção
+                itemCount: rates.length,
+                itemBuilder: (context, index) {
+                  String currencyCode = rates.keys.elementAt(index);
+                  double rate = rates[currencyCode]!;
+
+                  // Card de cotação individual
+                  return Container(
+                    width: 130, // Largura fixa para cada card
+                    margin: EdgeInsets.only(right: 12),
+                    padding: EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade100,
+                      borderRadius: BorderRadius.circular(12.0),
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Código da Moeda (ex: USD)
+                        Text(
+                          currencyCode,
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Theme.of(context).primaryColor,
+                          ),
+                        ),
+                        SizedBox(height: 4),
+                        // Valor (ex: R$ 5,12)
+                        Text(
+                          'R\$ ${rate.toStringAsFixed(2)}',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.black87,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  // WIDGET: Dropdowns
   Widget _buildCurrencyDropdown(
     String label,
     String selectedValue,

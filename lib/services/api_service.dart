@@ -35,4 +35,33 @@ class ApiService {
       throw Exception('Falha ao converter moeda');
     }
   }
+
+  // NOVO MÉTODO: Busca cotações específicas em relação ao BRL
+  Future<Map<String, double>> getDailyRates(List<String> currencies) async {
+    // A API espera moedas separadas por vírgula (ex: USD,EUR,GBP)
+    String toCurrencies = currencies.join(',');
+
+    final response = await http.get(
+      Uri.parse('$_baseUrl/latest?from=BRL&to=$toCurrencies'),
+    );
+
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      // A API retorna o valor de 1 BRL em outras moedas (ex: 1 BRL = 0.18 USD)
+      // Precisamos inverter isso para saber "1 USD = X BRL"
+
+      Map<String, double> rates = Map<String, double>.from(data['rates']);
+      Map<String, double> invertedRates = {};
+
+      rates.forEach((key, value) {
+        if (value != 0) {
+          invertedRates[key] = 1 / value; // Inverte a cotação
+        }
+      });
+
+      return invertedRates;
+    } else {
+      throw Exception('Falha ao carregar cotações do dia');
+    }
+  }
 }
