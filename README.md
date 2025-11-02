@@ -12,7 +12,7 @@
 </p>
 
 <p align="center">
-  <img src="[INSERIR GIF/SCREENSHOT AQUI]" alt="Demo do App" width="400">
+  <!-- <img src="[INSERIR GIF/SCREENSHOT AQUI]" alt="Demo do App" width="400"> -->
 </p>
 
 ---
@@ -40,7 +40,7 @@ Se você quiser rodar este projeto localmente, siga os passos abaixo:
 
 1.  **Clone o repositório:**
     ```bash
-    git clone [https://github.com/](https://github.com/)[SEU-USUARIO]/[NOME-DO-REPOSITORIO].git
+    git clone https://github.com/ismapereira/conversor_moedas.git
     ```
 
 2.  **Acesse a pasta do projeto:**
